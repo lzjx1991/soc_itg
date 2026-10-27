@@ -25,6 +25,6 @@ htmlcov/
 
 # ---- 生成产物（禁止手改，由工具生成）----
 # 生成物与源分开管理；具体路径待实现时确定
-/generated/
+generated/
 /out/
 *.log

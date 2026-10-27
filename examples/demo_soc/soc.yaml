@@ -1,0 +1,9 @@
+design:
+  name: demo_soc
+  instances:
+    - { name: cpu0, vlnv: "acme.com:CPU:cpu_core:1.0.0" }
+    - { name: uart0, vlnv: "acme.com:PERIPH:uart:1.0.0" }
+  connections:
+    - cpu0.APB_Master = uart0.APB_Slave
+  address_map:
+    - { region: uart0, base: 0x10000000, size: 0x1000 }
