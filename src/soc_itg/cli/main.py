@@ -75,11 +75,21 @@ def cmd_parse(args):
     paths = _paths(args.project)
     components = {}
     files = []
+    search = []
     if paths["ip"].exists():
-        files += sorted(paths["ip"].rglob("*.xml"))
-    ipxact_dir = paths["root"] / "ipxact"
-    if ipxact_dir.exists():
-        files += sorted(ipxact_dir.rglob("*.xml"))
+        search.append(paths["ip"])
+    local_ipxact = paths["root"] / "ipxact"
+    if local_ipxact.exists():
+        search.append(local_ipxact)
+    ws_root = find_workspace(paths["root"])
+    if ws_root is not None:
+        ws = load_workspace(ws_root)
+        for repo in ws.repos.values():
+            if repo.ipxact_dir.exists():
+                search.append(repo.ipxact_dir)
+    for directory in search:
+        files.extend(sorted(directory.rglob("*.xml")))
+    files = sorted(set(files))
     for f in files:
         comp = read_component(f)
         components[comp.vlnv] = json.loads(comp.model_dump_json())
@@ -205,12 +215,20 @@ def cmd_open(args):
 
 
 def cmd_itg(args):
-    steps = [cmd_parse, cmd_assemble, cmd_pinmux, cmd_topcsr, cmd_crg, cmd_check, cmd_connect, cmd_generate, cmd_filelist]
-    for step in steps:
-        try:
-            step(args)
-        except Exception as exc:
-            print(f"[itg] skip {step.__name__}: {exc}")
+    from ..integrate import plan_integration
+    paths = _paths(args.project)
+    ws, repo, repos = plan_integration(paths["root"])
+    stages = [cmd_parse, cmd_assemble, cmd_pinmux, cmd_topcsr, cmd_crg, cmd_check, cmd_connect, cmd_generate, cmd_filelist]
+    original = args.project
+    for target in repos:
+        print(f"[itg] integrate '{target.name}'")
+        args.project = str(target.path)
+        for step in stages:
+            try:
+                step(args)
+            except Exception as exc:
+                print(f"[itg] skip {step.__name__}@{target.name}: {exc}")
+    args.project = original
     return 0
 
 
