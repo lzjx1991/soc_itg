@@ -368,6 +368,38 @@ def cmd_create(args):
     return 0
 
 
+def cmd_hier(args):
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    design = (repo.soc or {}).get("design", {}) or {}
+    instances = [dict(i) for i in design.get("instances", [])]
+    connections = list(design.get("connections", []))
+    from ..ipxact.resolve import repo_components
+    try:
+        comps = repo_components(repo)
+    except Exception:
+        comps = {}
+    for spec in instances:
+        if "module" in spec:
+            continue
+        comp = comps.get(spec.get("vlnv"))
+        if comp is not None:
+            spec["module"] = comp.vlnv.split(":")[2]
+            spec["ports"] = [{"name": p.name, "direction": p.direction, "width": p.width} for p in comp.ports]
+        else:
+            spec["module"] = spec["name"]
+    from ..hierarchical import build_hierarchy, emit_hierarchy
+    modules, top = build_hierarchy(instances, connections, top_name=design.get("name"))
+    texts = emit_hierarchy(modules)
+    outdir = paths["root"] / "generated" / "rtl"
+    outdir.mkdir(parents=True, exist_ok=True)
+    for name, text in texts.items():
+        target = outdir / f"{name}_hier.v"
+        target.write_text(text, encoding="utf-8")
+        print(f"[hier] -> {target}")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="soc-itg")
     parser.add_argument("-C", "--project", default=".", help="project directory")
@@ -424,6 +456,8 @@ def build_parser():
     vcs = sub.add_parser("vcs")
     vcs.add_argument("--top", nargs="*")
 
+    sub.add_parser("hier")
+
     return parser
 
 
@@ -451,6 +485,7 @@ def main(argv=None):
         "flow": cmd_flow,
         "verdi": cmd_open,
         "vcs": cmd_open,
+        "hier": cmd_hier,
     }
     if args.command is None:
         parser.print_help()
