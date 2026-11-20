@@ -77,11 +77,15 @@ def build_hierarchy(instances, connections, top_name=None):
 
     for idx, conn in enumerate(connections):
         if isinstance(conn, str):
+            if "=" not in conn:
+                continue
             a, b = [part.strip() for part in conn.split("=", 1)]
             width = 1
         else:
             a, b = conn["a"], conn["b"]
             width = conn.get("width", 1)
+        if "." not in a or "." not in b:
+            continue
         path_a, port_a = a.rsplit(".", 1)
         path_b, port_b = b.rsplit(".", 1)
         chain_a = resolve_path(nodes, path_a)

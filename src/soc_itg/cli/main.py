@@ -189,6 +189,16 @@ def cmd_generate(args):
         target = d / f"{soc.top}_regmap.md"
         target.write_text(generate_regdoc(soc), encoding="utf-8")
         made.append(target)
+    if gen in ("verify", "all"):
+        nl_path = paths["root"] / "build" / "connectivity.json"
+        if nl_path.exists():
+            from ..generators.verify import generate_tb
+            netlist = Netlist.model_validate_json(nl_path.read_text(encoding="utf-8"))
+            d = generated / "verify"
+            d.mkdir(parents=True, exist_ok=True)
+            target = d / f"tb_{soc.top}.sv"
+            target.write_text(generate_tb(netlist), encoding="utf-8")
+            made.append(target)
     for m in made:
         print(f"[generate] -> {m}")
     return 0
@@ -218,7 +228,7 @@ def cmd_itg(args):
     from ..integrate import plan_integration
     paths = _paths(args.project)
     ws, repo, repos = plan_integration(paths["root"])
-    stages = [cmd_parse, cmd_assemble, cmd_pinmux, cmd_topcsr, cmd_crg, cmd_check, cmd_connect, cmd_generate, cmd_filelist]
+    stages = [cmd_parse, cmd_assemble, cmd_pinmux, cmd_topcsr, cmd_crg, cmd_check, cmd_connect, cmd_generate, cmd_filelist, cmd_hier]
     original = args.project
     for target in repos:
         print(f"[itg] integrate '{target.name}'")
@@ -400,6 +410,15 @@ def cmd_hier(args):
     return 0
 
 
+def cmd_release(args):
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    from ..release import release
+    out = release(repo, args.version)
+    print(f"[release] -> {out}")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="soc-itg")
     parser.add_argument("-C", "--project", default=".", help="project directory")
@@ -411,10 +430,10 @@ def build_parser():
     sub.add_parser("connect")
 
     gen = sub.add_parser("generate")
-    gen.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs"])
+    gen.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs", "verify"])
 
     build = sub.add_parser("build")
-    build.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs"])
+    build.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs", "verify"])
     build.add_argument("--fail-on-error", action="store_true")
 
     pinmux = sub.add_parser("pinmux")
@@ -458,6 +477,9 @@ def build_parser():
 
     sub.add_parser("hier")
 
+    release = sub.add_parser("release")
+    release.add_argument("--version", required=True)
+
     return parser
 
 
@@ -486,6 +508,7 @@ def main(argv=None):
         "verdi": cmd_open,
         "vcs": cmd_open,
         "hier": cmd_hier,
+        "release": cmd_release,
     }
     if args.command is None:
         parser.print_help()
