@@ -14,7 +14,7 @@ from ..generators.csr import generate_csr_header
 from ..workspace import find_workspace, load_workspace, current_repo, load_repo
 from ..generators.filelist import generate_filelists
 from ..create import create_project
-from ..pinmux import read_pinmux, validate as validate_pinmux
+from ..pinmux import read_pinmux, validate as validate_pinmux, merge as merge_pinmux
 from ..pinmux.model import Pinmux as PinmuxModel
 from ..pinmux.registers import build_registers
 from ..generators.regblock import generate_regblock
@@ -24,7 +24,7 @@ from ..generators.netlist_emit import emit_netlist
 from ..connectivity import build_netlist
 from ..model.netlist import Netlist
 from ..model.topcsr import TopCSR
-from ..topcsr import read_topcsr
+from ..topcsr import read_topcsr, merge as merge_topcsr
 
 
 def _paths(project):
@@ -266,8 +266,19 @@ def cmd_build(args):
 
 def cmd_pinmux(args):
     paths = _paths(args.project)
-    xlsx = Path(args.file) if getattr(args, "file", None) else paths["root"] / "pinmux.xlsx"
-    pinmux = read_pinmux(str(xlsx))
+    repo = load_repo(paths["root"])
+    specs = []
+    if getattr(args, "file", None):
+        specs = [Path(args.file)]
+    elif repo.pinmux_dir.exists() and any(repo.pinmux_dir.glob("*.xlsx")):
+        specs = sorted(repo.pinmux_dir.glob("*.xlsx"))
+    elif (paths["root"] / "pinmux.xlsx").exists():
+        specs = [paths["root"] / "pinmux.xlsx"]
+    if not specs:
+        print("[pinmux] no input")
+        return 0
+    models = [read_pinmux(str(s)) for s in specs]
+    pinmux = models[0] if len(models) == 1 else merge_pinmux(models)
     findings = validate_pinmux(pinmux)
     out = paths["root"] / "build" / "pinmux.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -275,20 +286,32 @@ def cmd_pinmux(args):
     for f in findings:
         print(f"  [{f['level']}] {f['code']}: {f['msg']}")
     errors = [f for f in findings if f["level"] == "error"]
-    print(f"[pinmux] pads={len(pinmux.pads)} function={len(pinmux.function_share)} padshare={len(pinmux.padshare)} bist={len(pinmux.bist_share)} -> {out}")
+    print(f"[pinmux] {len(specs)} spec(s), pads={len(pinmux.pads)} -> {out}")
     print(f"[pinmux] {len(findings)} finding(s), {len(errors)} error(s)")
     return 1 if errors else 0
 
 
 def cmd_topcsr(args):
     paths = _paths(args.project)
-    xlsx = Path(args.file) if getattr(args, "file", None) else paths["root"] / "top_csr.xlsx"
+    repo = load_repo(paths["root"])
     soc = SoC.model_validate_json(paths["soc"].read_text(encoding="utf-8"))
-    topcsr = read_topcsr(str(xlsx), module=f"{soc.top}_top_regs")
+    module = f"{soc.top}_top_regs"
+    specs = []
+    if getattr(args, "file", None):
+        specs = [Path(args.file)]
+    elif repo.csr_dir.exists() and any(repo.csr_dir.glob("*.xlsx")):
+        specs = sorted(repo.csr_dir.glob("*.xlsx"))
+    elif (paths["root"] / "top_csr.xlsx").exists():
+        specs = [paths["root"] / "top_csr.xlsx"]
+    if not specs:
+        print("[topcsr] no input")
+        return 0
+    models = [read_topcsr(str(s), module=module) for s in specs]
+    topcsr = models[0] if len(models) == 1 else merge_topcsr(models, module=module)
     out = paths["root"] / "build" / "topcsr.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(topcsr.model_dump_json(indent=2), encoding="utf-8")
-    print(f"[topcsr] regs={len(topcsr.memory_map.registers)} bindings={len(topcsr.bindings)} -> {out}")
+    print(f"[topcsr] {len(specs)} spec(s), regs={len(topcsr.memory_map.registers)} bindings={len(topcsr.bindings)} -> {out}")
     return 0
 
 
@@ -419,6 +442,21 @@ def cmd_release(args):
     return 0
 
 
+def cmd_deps(args):
+    root = Path(args.project).resolve()
+    ws_root = find_workspace(root)
+    if ws_root is None:
+        print("no workspace.yaml")
+        return 0
+    ws = load_workspace(ws_root)
+    from ..deps import check
+    findings = check(ws)
+    for f in findings:
+        print(f"[deps] {f['level']} {f['code']}: {f['msg']}")
+    print(f"[deps] {len(findings)} issue(s)")
+    return 1 if any(f["level"] == "error" for f in findings) else 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="soc-itg")
     parser.add_argument("-C", "--project", default=".", help="project directory")
@@ -480,6 +518,8 @@ def build_parser():
     release = sub.add_parser("release")
     release.add_argument("--version", required=True)
 
+    sub.add_parser("deps")
+
     return parser
 
 
@@ -509,6 +549,7 @@ def main(argv=None):
         "vcs": cmd_open,
         "hier": cmd_hier,
         "release": cmd_release,
+        "deps": cmd_deps,
     }
     if args.command is None:
         parser.print_help()

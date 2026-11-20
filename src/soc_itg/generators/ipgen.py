@@ -1,9 +1,31 @@
+import re
 from pathlib import Path
 
-from ..model import Component, FileSet, FileItem, Port
+from ..model import Component, FileSet, FileItem, Port, BusInterface
 from ..topcsr.excel import read_topcsr
 from ..ipxact.writer import write_component_file
 from .rtl_ports import extract_ports
+
+_APB = ["PCLK", "PRESETn", "PADDR", "PSELx", "PENABLE", "PWRITE", "PWDATA", "PRDATA", "PREADY", "PSLVERR"]
+
+
+def _norm(value):
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def infer_apb(ports, mode="slave"):
+    by_name = {_norm(p.name): p.name for p in ports}
+    port_maps = {}
+    for logical in _APB:
+        candidates = [logical, "PSEL"] if logical == "PSELx" else [logical]
+        for cand in candidates:
+            key = _norm(cand)
+            if key in by_name:
+                port_maps[logical] = by_name[key]
+                break
+    if len(port_maps) >= 4:
+        return BusInterface(name="APB", mode=mode, bus_type="APB", port_maps=port_maps)
+    return None
 
 
 def build_component(name, vlnv, regs_path, rtl_files=None, ports=None):
@@ -37,6 +59,9 @@ def ipgen(repo, name=None, regs=None, vlnv=None):
     if repo.rtl_dir.exists():
         rtl_files = sorted(str(p.relative_to(repo.path)) for p in repo.rtl_dir.rglob("*") if p.suffix in (".v", ".sv"))
     component = build_component(name, vlnv, Path(regs), rtl_files, ports=_rtl_ports(repo))
+    bus = infer_apb(component.ports)
+    if bus is not None:
+        component.bus_interfaces = [bus]
     out = repo.ipxact_dir / f"{name}.xml"
     write_component_file(component, out)
     return out
