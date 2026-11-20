@@ -1,4 +1,7 @@
+import os
 from pathlib import Path
+
+import yaml
 
 from .io.config import load_yaml
 from .generators.filelist import parse_filelist
@@ -55,6 +58,22 @@ def dependence(repo):
 def workspace_dir(repo):
     from .workspace import workspace_dir_of
     return workspace_dir_of(repo.path)
+
+
+def eda_dir_of(repo):
+    from .workspace import find_workspace
+    root = find_workspace(repo.path)
+    base = Path(root) if root is not None else Path(repo.path).resolve()
+    config_path = base / "workspace.yaml"
+    if config_path.exists():
+        raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        value = raw.get("eda_dir")
+        if value:
+            value = str(value)
+            if "${PWD}" in value or "$PWD" in value:
+                return base
+            return Path(os.path.expandvars(value))
+    return base
 
 
 def gather_filelist(repo, workspace, tool):

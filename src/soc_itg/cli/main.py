@@ -225,10 +225,10 @@ def cmd_open(args):
     ws_root = find_workspace(repo.path)
     ws = load_workspace(ws_root) if ws_root is not None else None
     from ..workspace import workspace_dir_of
-    from ..flow import gather_filelist
-    target_dir = workspace_dir_of(repo.path)
+    from ..flow import gather_filelist, eda_dir_of
+    workspace_dir_of(repo.path)
     merged = gather_filelist(repo, ws, tool)
-    target = target_dir / "filelist" / f"{tool}.f"
+    target = eda_dir_of(repo) / f"{tool}.f"
     target.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"+incdir+{d}" for d in merged["incdirs"]] + [f"+define+{d}" for d in merged["defines"]] + merged["files"]
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -244,13 +244,14 @@ def cmd_set(args):
     path = Path(args.value).expanduser().resolve()
     path.mkdir(parents=True, exist_ok=True)
     ws_root = find_workspace(Path.cwd().resolve())
-    wsfile = (Path(ws_root) if ws_root is not None else path) / "workspace.yaml"
-    data = {}
-    if wsfile.exists():
-        data = yaml.safe_load(wsfile.read_text(encoding="utf-8")) or {}
-    data["workspace_dir"] = "${PWD}" if (ws_root is not None and path == Path(ws_root).resolve()) else str(path)
+    if ws_root is None:
+        print("not in a workspace (no workspace.yaml found upward)")
+        return 2
+    wsfile = Path(ws_root) / "workspace.yaml"
+    data = yaml.safe_load(wsfile.read_text(encoding="utf-8")) or {}
+    data["eda_dir"] = str(path)
     wsfile.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-    print(f"[set] DIR = {path} -> {wsfile}")
+    print(f"[set] EDA DIR = {path} -> {wsfile}")
     return 0
 
 
