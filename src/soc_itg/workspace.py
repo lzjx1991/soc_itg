@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from .io.config import load_yaml
 
 WORKSPACE_FILE = "workspace.yaml"
@@ -14,8 +16,15 @@ def workspace_dir_of(start):
     value = str(base)
     if root is not None:
         config_path = root / WORKSPACE_FILE
-        config = load_yaml(config_path) if config_path.exists() else {}
-        value = config.get("workspace_dir") or str(root)
+        if config_path.exists():
+            raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            workspace_dir = raw.get("workspace_dir")
+            if workspace_dir:
+                workspace_dir = str(workspace_dir)
+                if "${PWD}" in workspace_dir or "$PWD" in workspace_dir:
+                    value = str(root)
+                else:
+                    value = os.path.expandvars(workspace_dir)
     os.environ["workspace_dir"] = value
     return Path(value)
 

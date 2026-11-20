@@ -246,7 +246,7 @@ def cmd_set(args):
     data = {}
     if wsfile.exists():
         data = yaml.safe_load(wsfile.read_text(encoding="utf-8")) or {}
-    data["workspace_dir"] = str(path)
+    data["workspace_dir"] = "${PWD}"
     wsfile.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     print(f"[set] DIR = {path}")
     return 0
