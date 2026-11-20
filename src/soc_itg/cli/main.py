@@ -74,7 +74,12 @@ def cmd_connect(args):
 def cmd_parse(args):
     paths = _paths(args.project)
     components = {}
-    files = sorted(paths["ip"].glob("*.xml"))
+    files = []
+    if paths["ip"].exists():
+        files += sorted(paths["ip"].rglob("*.xml"))
+    ipxact_dir = paths["root"] / "ipxact"
+    if ipxact_dir.exists():
+        files += sorted(ipxact_dir.rglob("*.xml"))
     for f in files:
         comp = read_component(f)
         components[comp.vlnv] = json.loads(comp.model_dump_json())
@@ -157,8 +162,30 @@ def cmd_generate(args):
             made.append(pm_target)
         else:
             print("[generate] skip pinmux: build/pinmux.json not found (run 'soc-itg pinmux' first)")
+    if gen in ("sdc", "all"):
+        from ..generators.sdc import merge_sdc
+        made.append(merge_sdc(load_repo(paths["root"])))
     for m in made:
         print(f"[generate] -> {m}")
+    return 0
+
+
+def cmd_itg(args):
+    steps = [cmd_parse, cmd_assemble, cmd_pinmux, cmd_topcsr, cmd_crg, cmd_check, cmd_connect, cmd_generate, cmd_filelist]
+    for step in steps:
+        try:
+            step(args)
+        except Exception as exc:
+            print(f"[itg] skip {step.__name__}: {exc}")
+    return 0
+
+
+def cmd_ipgen(args):
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    from ..generators.ipgen import ipgen
+    out = ipgen(repo, name=args.top, regs=args.regs, vlnv=args.vlnv)
+    print(f"[ipgen] -> {out}")
     return 0
 
 
@@ -327,6 +354,14 @@ def build_parser():
     create.add_argument("--init", action="store_true")
     create.add_argument("--no-git", action="store_true")
 
+    itg = sub.add_parser("itg")
+    itg.add_argument("--top")
+
+    ipgen = sub.add_parser("ipgen")
+    ipgen.add_argument("--top")
+    ipgen.add_argument("--regs")
+    ipgen.add_argument("--vlnv")
+
     return parser
 
 
@@ -349,6 +384,8 @@ def main(argv=None):
         "filelist": cmd_filelist,
         "clean": cmd_clean,
         "create": cmd_create,
+        "itg": cmd_itg,
+        "ipgen": cmd_ipgen,
     }
     if args.command is None:
         parser.print_help()
