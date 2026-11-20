@@ -1,10 +1,23 @@
 from __future__ import annotations
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .io.config import load_yaml
 
 WORKSPACE_FILE = "workspace.yaml"
+
+
+def workspace_dir_of(start):
+    root = find_workspace(start)
+    base = root if root is not None else Path(start).resolve()
+    value = str(base)
+    if root is not None:
+        config_path = root / WORKSPACE_FILE
+        config = load_yaml(config_path) if config_path.exists() else {}
+        value = config.get("workspace_dir") or str(root)
+    os.environ["workspace_dir"] = value
+    return Path(value)
 
 
 @dataclass

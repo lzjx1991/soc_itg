@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 
 from ..ipxact.resolve import repo_components
+from ..workspace import workspace_dir_of
 
 
 def _update_info(repo, filelists):
@@ -12,6 +13,13 @@ def _update_info(repo, filelists):
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     data["filelist"] = filelists
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def _rel(ws_dir, target):
+    try:
+        return "${workspace_dir}/" + str(Path(target).resolve().relative_to(Path(ws_dir).resolve()))
+    except ValueError:
+        return str(target)
 
 
 def _strip_and_join(text):
@@ -117,6 +125,7 @@ def generate_filelists(repo, top_name=None):
     sim_path.write_text("\n".join(sim_lines) + "\n", encoding="utf-8")
     syn_path.write_text("\n".join(files) + "\n", encoding="utf-8")
     fpga_path.write_text("\n".join(files) + "\n", encoding="utf-8")
-    filelists = {"sim": str(sim_path), "syn": str(syn_path), "fpga": str(fpga_path)}
+    ws_dir = workspace_dir_of(repo.path)
+    filelists = {"sim": _rel(ws_dir, sim_path), "syn": _rel(ws_dir, syn_path), "fpga": _rel(ws_dir, fpga_path)}
     _update_info(repo, filelists)
     return {"files": files, "incdirs": incdirs, "outdir": outdir, "filelists": filelists}

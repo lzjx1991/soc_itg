@@ -53,15 +53,8 @@ def dependence(repo):
 
 
 def workspace_dir(repo):
-    from .workspace import find_workspace
-    ws_root = find_workspace(repo.path)
-    base = ws_root or repo.path
-    settings = base / ".soc_itg" / "settings.yaml"
-    if settings.exists():
-        data = load_yaml(settings)
-        if data.get("workspace_dir"):
-            return Path(data["workspace_dir"])
-    return base
+    from .workspace import workspace_dir_of
+    return workspace_dir_of(repo.path)
 
 
 def gather_filelist(repo, workspace, tool):

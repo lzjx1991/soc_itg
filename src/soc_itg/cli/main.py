@@ -224,9 +224,11 @@ def cmd_open(args):
     repo = load_repo(paths["root"])
     ws_root = find_workspace(repo.path)
     ws = load_workspace(ws_root) if ws_root is not None else None
-    from ..flow import gather_filelist, workspace_dir
+    from ..workspace import workspace_dir_of
+    from ..flow import gather_filelist
+    target_dir = workspace_dir_of(repo.path)
     merged = gather_filelist(repo, ws, tool)
-    target = workspace_dir(repo) / "filelist" / f"{tool}.f"
+    target = target_dir / "filelist" / f"{tool}.f"
     target.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"+incdir+{d}" for d in merged["incdirs"]] + [f"+define+{d}" for d in merged["defines"]] + merged["files"]
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -238,9 +240,14 @@ def cmd_set(args):
     if args.key.upper() != "DIR":
         print("usage: soc-itg set DIR <path>")
         return 2
+    import yaml
     path = Path(args.value).resolve()
-    (path / ".soc_itg").mkdir(parents=True, exist_ok=True)
-    (path / ".soc_itg" / "settings.yaml").write_text(f"workspace_dir: {path}\n", encoding="utf-8")
+    wsfile = path / "workspace.yaml"
+    data = {}
+    if wsfile.exists():
+        data = yaml.safe_load(wsfile.read_text(encoding="utf-8")) or {}
+    data["workspace_dir"] = str(path)
+    wsfile.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
     print(f"[set] DIR = {path}")
     return 0
 
