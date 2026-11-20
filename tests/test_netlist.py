@@ -38,21 +38,21 @@ class NetlistTest(unittest.TestCase):
     def test_ports_are_pads(self):
         netlist = build_netlist(self.soc, self.pinmux)
         names = [p.name for p in netlist.ports]
-        self.assertIn("pad_gpio0", names)
+        self.assertIn("PAD_GPIO0", names)
         self.assertEqual(len(netlist.ports), len(self.pinmux.pads))
 
     def test_pinmux_instance_and_pad_nets(self):
         netlist = build_netlist(self.soc, self.pinmux)
         self.assertTrue(any(i.name == "u_pinmux" for i in netlist.instances))
-        self.assertTrue(any(n.name == "pad_gpio0" for n in netlist.nets))
+        self.assertTrue(any(n.name == "PAD_GPIO0" for n in netlist.nets))
 
     def test_emit_top(self):
         netlist = build_netlist(self.soc, self.pinmux)
         text = emit_netlist(netlist)
         self.assertIn("module demo_soc (", text)
-        self.assertIn("inout  wire pad_gpio0", text)
+        self.assertIn("inout  wire PAD_GPIO0", text)
         self.assertIn("demo_soc_pinmux u_pinmux", text)
-        self.assertIn(".pad_gpio0(pad_gpio0)", text)
+        self.assertIn(".pad_gpio0(PAD_GPIO0)", text)
 
     def test_no_double_driver_on_pads(self):
         netlist = build_netlist(self.soc, self.pinmux)

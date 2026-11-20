@@ -77,11 +77,13 @@ def _add_pinmux_instance(soc: SoC, pinmux: Pinmux, netlist: Netlist, module_name
 
 def _add_pad_ports_and_nets(pinmux: Pinmux, netlist: Netlist):
     for pad in pinmux.pads:
-        name = f"pad_{_pad_key(pad.name)}"
-        netlist.ports.append(PortSpec(name=name, direction="inout", width=1))
-        netlist.nets.append(Net(name=name, width=1, tri_state=True, endpoints=[
-            Endpoint(instance="", port=name, direction="inout"),
-            Endpoint(instance="u_pinmux", port=name, direction="inout"),
+        key = _pad_key(pad.name)
+        pad_port = f"pad_{key}"
+        net_name = f"PAD_{key.upper()}"
+        netlist.ports.append(PortSpec(name=net_name, direction="inout", width=1))
+        netlist.nets.append(Net(name=net_name, width=1, tri_state=True, endpoints=[
+            Endpoint(instance="", port=net_name, direction="inout"),
+            Endpoint(instance="u_pinmux", port=pad_port, direction="inout"),
         ]))
 
 
