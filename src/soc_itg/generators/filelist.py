@@ -70,31 +70,12 @@ def _is_package(path, file_type):
     return "pkg" in name or name.endswith(".svh") or "package" in file_type.lower()
 
 
-def _used_vlnvs(repo):
-    design = (repo.soc or {}).get("design", {}) or {}
-    return {i.get("vlnv") for i in design.get("instances", []) if i.get("vlnv")}
-
-
 def collect_files(repo, top_name=None):
-    from ..workspace import find_workspace, load_workspace
-
     entries = []
-    used = _used_vlnvs(repo)
-    ws_root = find_workspace(repo.path)
-    if ws_root is not None:
-        workspace = load_workspace(ws_root)
-        sources = [workspace.repo(name) for name in workspace.repos]
-    else:
-        sources = [repo]
-    for source in sources:
-        if source is None:
-            continue
-        for comp in repo_components(source).values():
-            if used and comp.vlnv not in used:
-                continue
-            for file_set in comp.file_sets:
-                for item in file_set.files:
-                    entries.append((str(source.path / item.name), item.file_type))
+    for comp in repo_components(repo).values():
+        for file_set in comp.file_sets:
+            for item in file_set.files:
+                entries.append((str(repo.path / item.name), item.file_type))
     generated_rtl = repo.path / "generated" / "rtl"
     if generated_rtl.exists():
         for f in sorted(generated_rtl.rglob("*")):

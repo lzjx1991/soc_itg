@@ -220,7 +220,28 @@ def cmd_flow(args):
 
 def cmd_open(args):
     tool = getattr(args, "command", "")
-    print(f"[{tool}] (dry-run) {tool} --top {' '.join(args.top or [])}")
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    ws_root = find_workspace(repo.path)
+    ws = load_workspace(ws_root) if ws_root is not None else None
+    from ..flow import gather_filelist, workspace_dir
+    merged = gather_filelist(repo, ws, tool)
+    target = workspace_dir(repo) / "filelist" / f"{tool}.f"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lines = [f"+incdir+{d}" for d in merged["incdirs"]] + [f"+define+{d}" for d in merged["defines"]] + merged["files"]
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"[{tool}] {len(merged['files'])} file(s) -> {target}")
+    return 0
+
+
+def cmd_set(args):
+    if args.key.upper() != "DIR":
+        print("usage: soc-itg set DIR <path>")
+        return 2
+    path = Path(args.value).resolve()
+    (path / ".soc_itg").mkdir(parents=True, exist_ok=True)
+    (path / ".soc_itg" / "settings.yaml").write_text(f"workspace_dir: {path}\n", encoding="utf-8")
+    print(f"[set] DIR = {path}")
     return 0
 
 
@@ -513,6 +534,13 @@ def build_parser():
     vcs = sub.add_parser("vcs")
     vcs.add_argument("--top", nargs="*")
 
+    dc = sub.add_parser("dc")
+    dc.add_argument("--top", nargs="*")
+
+    setp = sub.add_parser("set")
+    setp.add_argument("key")
+    setp.add_argument("value")
+
     sub.add_parser("hier")
 
     release = sub.add_parser("release")
@@ -547,6 +575,8 @@ def main(argv=None):
         "flow": cmd_flow,
         "verdi": cmd_open,
         "vcs": cmd_open,
+        "dc": cmd_open,
+        "set": cmd_set,
         "hier": cmd_hier,
         "release": cmd_release,
         "deps": cmd_deps,
