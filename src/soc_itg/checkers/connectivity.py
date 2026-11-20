@@ -29,7 +29,7 @@ def _check_connections(soc):
                     findings.append(_finding("error", "CONN_NO_INST", f"'{endpoint}' references unknown instance"))
                     continue
                 comp = soc.component_of(inst_name)
-                if comp is not None and comp.bus_if(iface) is None:
+                if comp is not None and comp.bus_if(iface) is None and comp.port(iface) is None:
                     findings.append(_finding("error", "CONN_NO_IFACE", f"instance '{inst_name}' has no interface '{iface}'"))
         elif conn.type == "adhoc":
             endpoints = [conn.driver] + list(conn.loads)

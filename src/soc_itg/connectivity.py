@@ -184,6 +184,53 @@ def _add_ties(soc: SoC, netlist: Netlist, used: set):
             netlist.ties.append(TieBinding(instance=inst, port=port, value=conn.value))
 
 
+def _add_direct(soc: SoC, netlist: Netlist, used: set):
+    for conn in soc.connections:
+        if conn.type not in ("interconnection", "adhoc"):
+            continue
+        if "." not in conn.a or "." not in conn.b:
+            continue
+        a_inst, a_port = _split(conn.a)
+        b_inst, b_port = _split(conn.b)
+        a_comp = soc.component_of(a_inst)
+        b_comp = soc.component_of(b_inst)
+        if a_comp is None or b_comp is None:
+            continue
+        if a_comp.bus_if(a_port) is not None or b_comp.bus_if(b_port) is not None:
+            continue
+        a_p = a_comp.port(a_port)
+        b_p = b_comp.port(b_port)
+        if a_p is None or b_p is None:
+            continue
+        netlist.nets.append(Net(name=f"net_d_{_san(a_inst)}_{_san(a_port)}", width=a_p.width, endpoints=[
+            Endpoint(instance=a_inst, port=a_port, direction=a_p.direction),
+            Endpoint(instance=b_inst, port=b_port, direction=b_p.direction),
+        ]))
+        used.add((a_inst, a_port))
+        used.add((b_inst, b_port))
+
+
+def _add_adhoc(soc: SoC, netlist: Netlist, used: set):
+    for conn in soc.connections:
+        if conn.type != "adhoc" or not conn.driver:
+            continue
+        d_inst, d_port = _split(conn.driver)
+        d_comp = soc.component_of(d_inst)
+        if d_comp is None or d_comp.port(d_port) is None:
+            continue
+        endpoints = [Endpoint(instance=d_inst, port=d_port, direction=d_comp.port(d_port).direction)]
+        width = d_comp.port(d_port).width
+        for load in conn.loads:
+            l_inst, l_port = _split(load)
+            l_comp = soc.component_of(l_inst)
+            if l_comp is None or l_comp.port(l_port) is None:
+                continue
+            endpoints.append(Endpoint(instance=l_inst, port=l_port, direction=l_comp.port(l_port).direction))
+            used.add((l_inst, l_port))
+        used.add((d_inst, d_port))
+        netlist.nets.append(Net(name=f"net_a_{_san(d_inst)}_{_san(d_port)}", width=width, endpoints=endpoints))
+
+
 def build_netlist(soc: SoC, pinmux: Pinmux | None = None, topcsr: TopCSR | None = None, pinmux_module: str | None = None, topcsr_module: str | None = None, tool_version="0.1.0"):
     netlist = Netlist(top=soc.top, tool_version=tool_version)
     _add_instances(soc, netlist)
@@ -192,7 +239,9 @@ def build_netlist(soc: SoC, pinmux: Pinmux | None = None, topcsr: TopCSR | None 
     if pinmux is not None:
         _add_pinmux_instance(soc, pinmux, netlist, module_name)
         _add_pad_ports_and_nets(pinmux, netlist)
+    _add_adhoc(soc, netlist, used)
     _add_interconnections(soc, netlist, used)
+    _add_direct(soc, netlist, used)
     _add_ties(soc, netlist, used)
     if pinmux is not None:
         _add_pinmux_ip_nets(soc, pinmux, netlist, used)

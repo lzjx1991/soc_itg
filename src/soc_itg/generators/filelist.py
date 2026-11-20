@@ -1,6 +1,17 @@
 from pathlib import Path
 
+import yaml
+
 from ..ipxact.resolve import repo_components
+
+
+def _update_info(repo, filelists):
+    path = repo.path / f"{repo.name}_info.yaml"
+    data = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    data["filelist"] = filelists
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _strip_and_join(text):
@@ -59,12 +70,31 @@ def _is_package(path, file_type):
     return "pkg" in name or name.endswith(".svh") or "package" in file_type.lower()
 
 
+def _used_vlnvs(repo):
+    design = (repo.soc or {}).get("design", {}) or {}
+    return {i.get("vlnv") for i in design.get("instances", []) if i.get("vlnv")}
+
+
 def collect_files(repo, top_name=None):
+    from ..workspace import find_workspace, load_workspace
+
     entries = []
-    for comp in repo_components(repo).values():
-        for file_set in comp.file_sets:
-            for item in file_set.files:
-                entries.append((str(repo.path / item.name), item.file_type))
+    used = _used_vlnvs(repo)
+    ws_root = find_workspace(repo.path)
+    if ws_root is not None:
+        workspace = load_workspace(ws_root)
+        sources = [workspace.repo(name) for name in workspace.repos]
+    else:
+        sources = [repo]
+    for source in sources:
+        if source is None:
+            continue
+        for comp in repo_components(source).values():
+            if used and comp.vlnv not in used:
+                continue
+            for file_set in comp.file_sets:
+                for item in file_set.files:
+                    entries.append((str(source.path / item.name), item.file_type))
     generated_rtl = repo.path / "generated" / "rtl"
     if generated_rtl.exists():
         for f in sorted(generated_rtl.rglob("*")):
@@ -100,7 +130,12 @@ def generate_filelists(repo, top_name=None):
     incdirs = sorted({str(Path(p).parent) for p in files})
 
     sim_lines = [f"+incdir+{d}" for d in incdirs] + files
-    (outdir / "sim.f").write_text("\n".join(sim_lines) + "\n", encoding="utf-8")
-    (outdir / "syn.f").write_text("\n".join(files) + "\n", encoding="utf-8")
-    (outdir / "fpga.f").write_text("\n".join(files) + "\n", encoding="utf-8")
-    return {"files": files, "incdirs": incdirs, "outdir": outdir}
+    sim_path = outdir / "sim.f"
+    syn_path = outdir / "syn.f"
+    fpga_path = outdir / "fpga.f"
+    sim_path.write_text("\n".join(sim_lines) + "\n", encoding="utf-8")
+    syn_path.write_text("\n".join(files) + "\n", encoding="utf-8")
+    fpga_path.write_text("\n".join(files) + "\n", encoding="utf-8")
+    filelists = {"sim": str(sim_path), "syn": str(syn_path), "fpga": str(fpga_path)}
+    _update_info(repo, filelists)
+    return {"files": files, "incdirs": incdirs, "outdir": outdir, "filelists": filelists}
