@@ -33,6 +33,11 @@ class TieBinding(BaseModel):
     value: int = 0
 
 
+class Assign(BaseModel):
+    target: str
+    expr: str
+
+
 class Netlist(BaseModel):
     schema_version: int = 1
     tool_version: str = "0.1.0"
@@ -41,3 +46,4 @@ class Netlist(BaseModel):
     instances: list[InstanceSpec] = Field(default_factory=list)
     nets: list[Net] = Field(default_factory=list)
     ties: list[TieBinding] = Field(default_factory=list)
+    assigns: list[Assign] = Field(default_factory=list)

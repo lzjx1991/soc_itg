@@ -20,6 +20,8 @@ def emit_netlist(netlist: Netlist):
         if any(ep.instance == "" for ep in net.endpoints):
             continue
         lines.append(f"  wire {_rng(net.width)}{net.name};")
+    for a in netlist.assigns:
+        lines.append(f"  assign {a.target} = {a.expr};")
     lines.append("")
 
     port_net = {}

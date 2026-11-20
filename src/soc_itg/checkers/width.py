@@ -4,7 +4,7 @@ from ..model import SoC
 def check_width(soc: SoC):
     findings = []
     for conn in soc.connections:
-        if conn.type != "interconnection":
+        if conn.kind() != "interconnection":
             continue
         if "." not in conn.a or "." not in conn.b:
             continue

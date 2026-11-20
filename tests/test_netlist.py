@@ -62,6 +62,19 @@ class NetlistTest(unittest.TestCase):
             drivers = [ep for ep in net.endpoints if ep.direction == "out"]
             self.assertLessEqual(len(drivers), 1, f"net {net.name} has multiple drivers")
 
+    def test_concat_bus_from_single_bits(self):
+        from soc_itg.model import Component, Port, Instance, SoC, Connection
+        a = Component(vlnv="v:a:a:1.0.0", ports=[Port(name="o", direction="out", width=1)])
+        b = Component(vlnv="v:b:b:1.0.0", ports=[Port(name="o", direction="out", width=1)])
+        c = Component(vlnv="v:c:c:1.0.0", ports=[Port(name="i", direction="in", width=2)])
+        soc = SoC(top="t",
+                  instances=[Instance(name="a", vlnv="v:a:a:1.0.0"), Instance(name="b", vlnv="v:b:b:1.0.0"), Instance(name="c", vlnv="v:c:c:1.0.0")],
+                  components={"v:a:a:1.0.0": a, "v:b:b:1.0.0": b, "v:c:c:1.0.0": c},
+                  connections=[Connection(a=["a.o", "b.o"], b="c.i")])
+        text = emit_netlist(build_netlist(soc))
+        self.assertIn("assign c_i = {b_o, a_o};", text)
+        self.assertIn(".i(c_i)", text)
+
     def test_tie_and_unconnect(self):
         netlist = build_netlist(self.soc, self.pinmux)
         ties = {(t.instance, t.port): t.value for t in netlist.ties}

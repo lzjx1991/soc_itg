@@ -22,7 +22,8 @@ def _check_instances(soc):
 def _check_connections(soc):
     findings = []
     for conn in soc.connections:
-        if conn.type == "interconnection":
+        kind = conn.kind()
+        if kind == "interconnection":
             for endpoint in (conn.a, conn.b):
                 inst_name, iface = _split(endpoint)
                 if soc.instance(inst_name) is None:
@@ -31,10 +32,20 @@ def _check_connections(soc):
                 comp = soc.component_of(inst_name)
                 if comp is not None and comp.bus_if(iface) is None and comp.port(iface) is None:
                     findings.append(_finding("error", "CONN_NO_IFACE", f"instance '{inst_name}' has no interface '{iface}'"))
-        elif conn.type == "adhoc":
+        elif kind == "fanout":
             endpoints = [conn.driver] + list(conn.loads)
             for endpoint in endpoints:
                 if not endpoint:
+                    continue
+                inst_name, _ = _split(endpoint)
+                if soc.instance(inst_name) is None:
+                    findings.append(_finding("error", "CONN_NO_INST", f"'{endpoint}' references unknown instance"))
+        elif kind == "concat":
+            endpoints = []
+            for side in (conn.a, conn.b):
+                endpoints.extend(side if isinstance(side, list) else [side])
+            for endpoint in endpoints:
+                if not isinstance(endpoint, str) or "." not in endpoint:
                     continue
                 inst_name, _ = _split(endpoint)
                 if soc.instance(inst_name) is None:

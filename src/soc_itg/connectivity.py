@@ -1,6 +1,6 @@
 from .model import SoC
 from .model.ir import Component
-from .model.netlist import Netlist, Net, Endpoint, PortSpec, InstanceSpec, TieBinding
+from .model.netlist import Netlist, Net, Endpoint, PortSpec, InstanceSpec, TieBinding, Assign
 from .pinmux.model import Pinmux
 from .model.topcsr import TopCSR
 
@@ -89,7 +89,7 @@ def _add_pad_ports_and_nets(pinmux: Pinmux, netlist: Netlist):
 
 def _add_interconnections(soc: SoC, netlist: Netlist, used: set):
     for conn in soc.connections:
-        if conn.type != "interconnection":
+        if conn.kind() != "interconnection":
             continue
         a_inst, a_if = _split(conn.a)
         b_inst, b_if = _split(conn.b)
@@ -174,7 +174,8 @@ def _add_top_regs_instance(soc: SoC, topcsr: TopCSR, netlist: Netlist, module_na
 
 def _add_ties(soc: SoC, netlist: Netlist, used: set):
     for conn in soc.connections:
-        if conn.type not in ("tie", "unconnect"):
+        kind = conn.kind()
+        if kind not in ("tie", "unconnect"):
             continue
         inst, port = _split(conn.a)
         if not inst or not port or soc.instance(inst) is None:
@@ -182,13 +183,13 @@ def _add_ties(soc: SoC, netlist: Netlist, used: set):
         if (inst, port) in used:
             continue
         used.add((inst, port))
-        if conn.type == "tie":
-            netlist.ties.append(TieBinding(instance=inst, port=port, value=conn.value))
+        if kind == "tie":
+            netlist.ties.append(TieBinding(instance=inst, port=port, value=conn.tie_value()))
 
 
 def _add_direct(soc: SoC, netlist: Netlist, used: set):
     for conn in soc.connections:
-        if conn.type not in ("interconnection", "adhoc"):
+        if conn.kind() != "interconnection":
             continue
         if "." not in conn.a or "." not in conn.b:
             continue
@@ -214,7 +215,7 @@ def _add_direct(soc: SoC, netlist: Netlist, used: set):
 
 def _add_adhoc(soc: SoC, netlist: Netlist, used: set):
     for conn in soc.connections:
-        if conn.type != "adhoc" or not conn.driver:
+        if conn.kind() != "fanout" or not conn.driver:
             continue
         d_inst, d_port = _split(conn.driver)
         d_comp = soc.component_of(d_inst)
@@ -233,6 +234,42 @@ def _add_adhoc(soc: SoC, netlist: Netlist, used: set):
         netlist.nets.append(Net(name=f"{_san(d_inst)}_{_san(d_port)}", width=width, endpoints=endpoints))
 
 
+def _add_concat(soc: SoC, netlist: Netlist, used: set):
+    for conn in soc.connections:
+        if conn.kind() != "concat":
+            continue
+        sources, target = (conn.a, conn.b) if isinstance(conn.a, list) else (conn.b, conn.a)
+        if not isinstance(target, str) or "." not in target:
+            continue
+        t_inst, t_port = _split(target)
+        t_comp = soc.component_of(t_inst)
+        t_p = t_comp.port(t_port) if t_comp is not None else None
+        if t_p is None:
+            continue
+        t_net = f"{_san(t_inst)}_{_san(t_port)}"
+        netlist.nets.append(Net(name=t_net, width=t_p.width, endpoints=[
+            Endpoint(instance=t_inst, port=t_port, direction=t_p.direction),
+        ]))
+        used.add((t_inst, t_port))
+        exprs = []
+        for src in sources:
+            if not isinstance(src, str) or "." not in src:
+                continue
+            s_inst, s_port = _split(src)
+            s_comp = soc.component_of(s_inst)
+            s_p = s_comp.port(s_port) if s_comp is not None else None
+            if s_p is None:
+                continue
+            s_net = f"{_san(s_inst)}_{_san(s_port)}"
+            netlist.nets.append(Net(name=s_net, width=s_p.width, endpoints=[
+                Endpoint(instance=s_inst, port=s_port, direction=s_p.direction),
+            ]))
+            used.add((s_inst, s_port))
+            exprs.append(s_net)
+        if exprs:
+            netlist.assigns.append(Assign(target=t_net, expr="{" + ", ".join(reversed(exprs)) + "}"))
+
+
 def build_netlist(soc: SoC, pinmux: Pinmux | None = None, topcsr: TopCSR | None = None, pinmux_module: str | None = None, topcsr_module: str | None = None, tool_version="0.1.0"):
     netlist = Netlist(top=soc.top, tool_version=tool_version)
     _add_instances(soc, netlist)
@@ -242,6 +279,7 @@ def build_netlist(soc: SoC, pinmux: Pinmux | None = None, topcsr: TopCSR | None 
         _add_pinmux_instance(soc, pinmux, netlist, module_name)
         _add_pad_ports_and_nets(pinmux, netlist)
     _add_adhoc(soc, netlist, used)
+    _add_concat(soc, netlist, used)
     _add_interconnections(soc, netlist, used)
     _add_direct(soc, netlist, used)
     _add_ties(soc, netlist, used)

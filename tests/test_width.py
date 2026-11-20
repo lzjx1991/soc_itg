@@ -17,7 +17,7 @@ class WidthTest(unittest.TestCase):
                       bus_interfaces=[BusInterface(name="B", mode="slave", bus_type="X", port_maps={"D": "d"})])
         return SoC(top="t", instances=[Instance(name="a", vlnv="a"), Instance(name="b", vlnv="b")],
                    components={"a": a, "b": b},
-                   connections=[Connection(type="interconnection", a="a.B", b="b.B")])
+                   connections=[Connection(a="a.B", b="b.B")])
 
     def test_mismatch(self):
         findings = check_width(self._soc(8, 16))

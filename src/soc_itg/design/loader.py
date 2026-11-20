@@ -15,15 +15,7 @@ def load_soc_yaml(path):
     for c in design.get("connections", []):
         if isinstance(c, str):
             left, right = [s.strip() for s in c.split("=", 1)]
-            value = right.lower().replace(" ", "")
-            if value in ("1'b0", "0"):
-                connections.append(Connection(type="tie", a=left, value=0))
-            elif value in ("1'b1", "1"):
-                connections.append(Connection(type="tie", a=left, value=1))
-            elif value == "none":
-                connections.append(Connection(type="unconnect", a=left))
-            else:
-                connections.append(Connection(type="interconnection", a=left, b=right))
+            connections.append(Connection(a=left, b=right))
         elif isinstance(c, dict):
             connections.append(Connection(**c))
     address_map = [

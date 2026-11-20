@@ -13,7 +13,7 @@ def _collect_nets(soc):
     nets = {}
     ordered = []
     for conn in soc.connections:
-        if conn.type != "interconnection":
+        if conn.kind() != "interconnection":
             continue
         a_inst, a_if = conn.a.split(".", 1)
         b_inst, b_if = conn.b.split(".", 1)
