@@ -241,14 +241,16 @@ def cmd_set(args):
         print("usage: soc-itg set DIR <path>")
         return 2
     import yaml
-    path = Path(args.value).resolve()
-    wsfile = path / "workspace.yaml"
+    path = Path(args.value).expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    ws_root = find_workspace(Path.cwd().resolve())
+    wsfile = (Path(ws_root) if ws_root is not None else path) / "workspace.yaml"
     data = {}
     if wsfile.exists():
         data = yaml.safe_load(wsfile.read_text(encoding="utf-8")) or {}
-    data["workspace_dir"] = "${PWD}"
+    data["workspace_dir"] = "${PWD}" if (ws_root is not None and path == Path(ws_root).resolve()) else str(path)
     wsfile.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-    print(f"[set] DIR = {path}")
+    print(f"[set] DIR = {path} -> {wsfile}")
     return 0
 
 
