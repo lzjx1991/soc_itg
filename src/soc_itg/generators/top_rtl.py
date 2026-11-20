@@ -29,7 +29,7 @@ def _collect_nets(soc):
             if logical not in b_bi.port_maps:
                 continue
             b_phys = b_bi.port_maps[logical]
-            net = f"net_{a_inst}_{logical}".lower()
+            net = f"{a_inst}_{logical}".lower()
             nets[(a_inst, a_phys)] = net
             nets[(b_inst, b_phys)] = net
             if net not in [n for n, _ in ordered]:

@@ -113,7 +113,7 @@ def _add_interconnections(soc: SoC, netlist: Netlist, used: set):
             if b_port is not None:
                 endpoints.append(Endpoint(instance=b_inst, port=b_phys, direction=b_port.direction))
                 used.add((b_inst, b_phys))
-            netlist.nets.append(Net(name=f"net_{_san(a_inst)}_{_san(logical)}", width=width, endpoints=endpoints))
+            netlist.nets.append(Net(name=f"{_san(a_inst)}_{_san(a_if)}_{_san(logical)}", width=width, endpoints=endpoints))
 
 
 def _add_pinmux_ip_nets(soc: SoC, pinmux: Pinmux, netlist: Netlist, used: set):
@@ -130,7 +130,7 @@ def _add_pinmux_ip_nets(soc: SoC, pinmux: Pinmux, netlist: Netlist, used: set):
             continue
         seen.add(key)
         sig = f"ip_{_san(inst)}_{_san(pin)}"
-        netlist.nets.append(Net(name=f"net_{_san(inst)}_{_san(pin)}", width=width, endpoints=[
+        netlist.nets.append(Net(name=f"{_san(inst)}_{_san(pin)}", width=width, endpoints=[
             Endpoint(instance=inst, port=pin, direction=direction),
             Endpoint(instance="u_pinmux", port=sig, direction=_port_direction(direction)),
         ]))
@@ -161,7 +161,7 @@ def _add_top_regs_instance(soc: SoC, topcsr: TopCSR, netlist: Netlist, module_na
             tp = comp.port(port) if comp is not None else None
             target_dir = tp.direction if tp is not None else "inout"
             netlist.nets.append(Net(
-                name=f"net_{_san(binding.reg)}_{_san(binding.field)}_{_san(inst)}_{_san(port)}",
+                name=f"{_san(binding.reg)}_{_san(binding.field)}_{_san(inst)}_{_san(port)}",
                 width=binding.width,
                 endpoints=[
                     Endpoint(instance="u_top_regs", port=sig, direction=regs_dir),
@@ -202,7 +202,7 @@ def _add_direct(soc: SoC, netlist: Netlist, used: set):
         b_p = b_comp.port(b_port)
         if a_p is None or b_p is None:
             continue
-        netlist.nets.append(Net(name=f"net_d_{_san(a_inst)}_{_san(a_port)}", width=a_p.width, endpoints=[
+        netlist.nets.append(Net(name=f"{_san(a_inst)}_{_san(a_port)}", width=a_p.width, endpoints=[
             Endpoint(instance=a_inst, port=a_port, direction=a_p.direction),
             Endpoint(instance=b_inst, port=b_port, direction=b_p.direction),
         ]))
@@ -228,7 +228,7 @@ def _add_adhoc(soc: SoC, netlist: Netlist, used: set):
             endpoints.append(Endpoint(instance=l_inst, port=l_port, direction=l_comp.port(l_port).direction))
             used.add((l_inst, l_port))
         used.add((d_inst, d_port))
-        netlist.nets.append(Net(name=f"net_a_{_san(d_inst)}_{_san(d_port)}", width=width, endpoints=endpoints))
+        netlist.nets.append(Net(name=f"{_san(d_inst)}_{_san(d_port)}", width=width, endpoints=endpoints))
 
 
 def build_netlist(soc: SoC, pinmux: Pinmux | None = None, topcsr: TopCSR | None = None, pinmux_module: str | None = None, topcsr_module: str | None = None, tool_version="0.1.0"):

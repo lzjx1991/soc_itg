@@ -22,16 +22,16 @@ class HierarchicalTest(unittest.TestCase):
         self.assertEqual(set(modules), {"insta", "instb"})
 
         instb = modules["instb"]
-        self.assertTrue(any(p["name"] == "net_0_pt" for p in instb.ports))
+        self.assertTrue(any(p["name"] == "conn0_pt" for p in instb.ports))
         text_b = emit_hierarchy(modules)["instb"]
-        self.assertIn("assign net_0_pt = net_0_w_instb;", text_b)
-        self.assertIn(".c(net_0_w_instb)", text_b)
+        self.assertIn("assign conn0_pt = conn0_w_instb;", text_b)
+        self.assertIn(".c(conn0_w_instb)", text_b)
 
         insta = modules["insta"]
         self.assertTrue(any(p["name"] == "a" for p in insta.ports))
         text_a = emit_hierarchy(modules)["insta"]
-        self.assertIn(".net_0_pt(net_0)", text_a)
-        self.assertIn("assign a = net_0;", text_a)
+        self.assertIn(".conn0_pt(conn0)", text_a)
+        self.assertIn("assign a = conn0;", text_a)
 
     def test_siblings(self):
         instances = [
@@ -42,8 +42,8 @@ class HierarchicalTest(unittest.TestCase):
         modules, top = build_hierarchy(instances, [{"a": "top.x.p", "b": "top.y.q", "width": 8}])
         self.assertIn("top", modules)
         text = emit_hierarchy(modules)["top"]
-        self.assertIn(".p(net_0)", text)
-        self.assertIn(".q(net_0)", text)
+        self.assertIn(".p(conn0)", text)
+        self.assertIn(".q(conn0)", text)
 
 
 if __name__ == "__main__":

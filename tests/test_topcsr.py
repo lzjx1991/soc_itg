@@ -54,15 +54,15 @@ class TopCSRTest(unittest.TestCase):
         netlist = build_netlist(self.soc, self.pinmux, self.topcsr)
         self.assertTrue(any(i.name == "u_top_regs" for i in netlist.instances))
         names = [n.name for n in netlist.nets]
-        self.assertIn("net_sys_ctrl_en_uart0_test_en", names)
-        self.assertIn("net_status_busy_uart0_irq", names)
+        self.assertIn("sys_ctrl_en_uart0_test_en", names)
+        self.assertIn("status_busy_uart0_irq", names)
 
     def test_emit_binds(self):
         netlist = build_netlist(self.soc, self.pinmux, self.topcsr)
         text = emit_netlist(netlist)
         self.assertIn("demo_soc_top_regs u_top_regs", text)
-        self.assertIn(".o_sys_ctrl_en(net_sys_ctrl_en_uart0_test_en)", text)
-        self.assertIn(".i_status_busy(net_status_busy_uart0_irq)", text)
+        self.assertIn(".o_sys_ctrl_en(sys_ctrl_en_uart0_test_en)", text)
+        self.assertIn(".i_status_busy(status_busy_uart0_irq)", text)
 
 
 if __name__ == "__main__":

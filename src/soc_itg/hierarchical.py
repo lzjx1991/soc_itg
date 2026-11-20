@@ -82,6 +82,8 @@ def build_hierarchy(instances, connections, top_name=None):
             a, b = [part.strip() for part in conn.split("=", 1)]
             width = 1
         else:
+            if "a" not in conn or "b" not in conn:
+                continue
             a, b = conn["a"], conn["b"]
             width = conn.get("width", 1)
         if "." not in a or "." not in b:
@@ -99,7 +101,7 @@ def build_hierarchy(instances, connections, top_name=None):
         module = modules.get(ancestor.name)
         if module is None:
             continue
-        net = f"net_{idx}"
+        net = f"conn{idx}"
         module.add_wire(net, width)
         left = _side(modules, ancestor, chain_a[-1], port_a, net, width)
         right = _side(modules, ancestor, chain_b[-1], port_b, net, width)
