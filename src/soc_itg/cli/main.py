@@ -165,8 +165,42 @@ def cmd_generate(args):
     if gen in ("sdc", "all"):
         from ..generators.sdc import merge_sdc
         made.append(merge_sdc(load_repo(paths["root"])))
+    if gen in ("ral", "all"):
+        from ..generators.ral import generate_ral
+        d = generated / "ral"
+        d.mkdir(parents=True, exist_ok=True)
+        target = d / f"{soc.top}_ral.sv"
+        target.write_text(generate_ral(soc), encoding="utf-8")
+        made.append(target)
+    if gen in ("docs", "all"):
+        from ..generators.regdoc import generate_regdoc
+        d = generated / "docs"
+        d.mkdir(parents=True, exist_ok=True)
+        target = d / f"{soc.top}_regmap.md"
+        target.write_text(generate_regdoc(soc), encoding="utf-8")
+        made.append(target)
     for m in made:
         print(f"[generate] -> {m}")
+    return 0
+
+
+def cmd_flow(args):
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    from ..flow import plan_flow, flow_command
+    tops = set(args.top.split(",")) if getattr(args, "top", None) else None
+    plans = plan_flow(repo, args.tool, tops)
+    if not plans:
+        print(f"[flow] no tasks for {args.tool}")
+        return 0
+    for task in plans:
+        print(f"[flow] (dry-run) {flow_command(args.tool, task)}")
+    return 0
+
+
+def cmd_open(args):
+    tool = getattr(args, "command", "")
+    print(f"[{tool}] (dry-run) {tool} --top {' '.join(args.top or [])}")
     return 0
 
 
@@ -327,10 +361,10 @@ def build_parser():
     sub.add_parser("connect")
 
     gen = sub.add_parser("generate")
-    gen.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux"])
+    gen.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs"])
 
     build = sub.add_parser("build")
-    build.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux"])
+    build.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux", "sdc", "ral", "docs"])
     build.add_argument("--fail-on-error", action="store_true")
 
     pinmux = sub.add_parser("pinmux")
@@ -362,6 +396,16 @@ def build_parser():
     ipgen.add_argument("--regs")
     ipgen.add_argument("--vlnv")
 
+    flow = sub.add_parser("flow")
+    flow.add_argument("tool")
+    flow.add_argument("--top")
+
+    verdi = sub.add_parser("verdi")
+    verdi.add_argument("--top", nargs="*")
+
+    vcs = sub.add_parser("vcs")
+    vcs.add_argument("--top", nargs="*")
+
     return parser
 
 
@@ -386,6 +430,9 @@ def main(argv=None):
         "create": cmd_create,
         "itg": cmd_itg,
         "ipgen": cmd_ipgen,
+        "flow": cmd_flow,
+        "verdi": cmd_open,
+        "vcs": cmd_open,
     }
     if args.command is None:
         parser.print_help()
