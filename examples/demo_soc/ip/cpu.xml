@@ -16,6 +16,8 @@
       <spirit:port><spirit:name>prdata</spirit:name><spirit:direction>in</spirit:direction><spirit:vector><spirit:left>31</spirit:left><spirit:right>0</spirit:right></spirit:vector></spirit:port>
       <spirit:port><spirit:name>pready</spirit:name><spirit:direction>in</spirit:direction></spirit:port>
       <spirit:port><spirit:name>pslverr</spirit:name><spirit:direction>in</spirit:direction></spirit:port>
+      <spirit:port><spirit:name>halt</spirit:name><spirit:direction>in</spirit:direction></spirit:port>
+      <spirit:port><spirit:name>dbg</spirit:name><spirit:direction>in</spirit:direction></spirit:port>
     </spirit:ports>
   </spirit:model>
   <spirit:busInterfaces>

@@ -16,6 +16,7 @@ class Connection(BaseModel):
     net: str = ""
     driver: str = ""
     loads: list[str] = Field(default_factory=list)
+    value: int = 0
 
 
 class AddressRegion(BaseModel):

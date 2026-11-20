@@ -1,5 +1,6 @@
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -10,11 +11,20 @@ from ..checkers import run_checks
 from ..model import SoC, MemoryMap
 from ..generators.top_rtl import generate_top_rtl
 from ..generators.csr import generate_csr_header
+from ..workspace import find_workspace, load_workspace, current_repo, load_repo
+from ..generators.filelist import generate_filelists
+from ..create import create_project
 from ..pinmux import read_pinmux, validate as validate_pinmux
 from ..pinmux.model import Pinmux as PinmuxModel
 from ..pinmux.registers import build_registers
 from ..generators.regblock import generate_regblock
 from ..generators.pinmux import generate_pinmux
+from ..generators.crg import process_crg
+from ..generators.netlist_emit import emit_netlist
+from ..connectivity import build_netlist
+from ..model.netlist import Netlist
+from ..model.topcsr import TopCSR
+from ..topcsr import read_topcsr
 
 
 def _paths(project):
@@ -39,6 +49,26 @@ def _merge_memory_maps(mem_maps):
     for mm in mem_maps:
         registers.extend(mm.registers)
     return MemoryMap(name="merged", registers=registers)
+
+
+def _build_connectivity(paths):
+    soc = SoC.model_validate_json(paths["soc"].read_text(encoding="utf-8"))
+    pm_path = paths["root"] / "build" / "pinmux.json"
+    pinmux = PinmuxModel.model_validate_json(pm_path.read_text(encoding="utf-8")) if pm_path.exists() else None
+    tc_path = paths["root"] / "build" / "topcsr.json"
+    topcsr = TopCSR.model_validate_json(tc_path.read_text(encoding="utf-8")) if tc_path.exists() else None
+    netlist = build_netlist(soc, pinmux, topcsr, tool_version=__version__)
+    out = paths["root"] / "build" / "connectivity.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(netlist.model_dump_json(indent=2), encoding="utf-8")
+    return netlist
+
+
+def cmd_connect(args):
+    paths = _paths(args.project)
+    netlist = _build_connectivity(paths)
+    print(f"[connect] ports={len(netlist.ports)} instances={len(netlist.instances)} nets={len(netlist.nets)} -> {paths['root'] / 'build' / 'connectivity.json'}")
+    return 0
 
 
 def cmd_parse(args):
@@ -99,9 +129,20 @@ def cmd_generate(args):
             target = rtl / f"{_san(inst.name)}_regs.v"
             target.write_text(generate_regblock(f"{_san(inst.name)}_regs", merged), encoding="utf-8")
             made.append(target)
+        tc_path = paths["root"] / "build" / "topcsr.json"
+        if tc_path.exists():
+            topcsr = TopCSR.model_validate_json(tc_path.read_text(encoding="utf-8"))
+            if topcsr.memory_map.registers:
+                target = rtl / f"{soc.top}_top_regs.v"
+                target.write_text(generate_regblock(f"{soc.top}_top_regs", topcsr.memory_map), encoding="utf-8")
+                made.append(target)
     if gen in ("top", "all"):
+        nl_path = paths["root"] / "build" / "connectivity.json"
+        if not nl_path.exists():
+            _build_connectivity(paths)
+        netlist = Netlist.model_validate_json(nl_path.read_text(encoding="utf-8"))
         target = rtl / f"{soc.top}.v"
-        target.write_text(generate_top_rtl(soc), encoding="utf-8")
+        target.write_text(emit_netlist(netlist), encoding="utf-8")
         made.append(target)
     if gen in ("pinmux", "all"):
         pm_path = paths["root"] / "build" / "pinmux.json"
@@ -150,6 +191,104 @@ def cmd_pinmux(args):
     return 1 if errors else 0
 
 
+def cmd_topcsr(args):
+    paths = _paths(args.project)
+    xlsx = Path(args.file) if getattr(args, "file", None) else paths["root"] / "top_csr.xlsx"
+    soc = SoC.model_validate_json(paths["soc"].read_text(encoding="utf-8"))
+    topcsr = read_topcsr(str(xlsx), module=f"{soc.top}_top_regs")
+    out = paths["root"] / "build" / "topcsr.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(topcsr.model_dump_json(indent=2), encoding="utf-8")
+    print(f"[topcsr] regs={len(topcsr.memory_map.registers)} bindings={len(topcsr.bindings)} -> {out}")
+    return 0
+
+
+def cmd_crg(args):
+    paths = _paths(args.project)
+    modules = process_crg(paths["root"], gen_tb=getattr(args, "tb", False))
+    for m in modules:
+        print(f"[crg] {m['module']} <- {m['spec']}")
+    print(f"[crg] {len(modules)} module(s) -> {paths['root'] / 'generated' / 'crg'}")
+    return 0
+
+
+def cmd_filelist(args):
+    paths = _paths(args.project)
+    repo = load_repo(paths["root"])
+    top = None
+    if paths["soc"].exists():
+        top = SoC.model_validate_json(paths["soc"].read_text(encoding="utf-8")).top
+    elif repo.soc:
+        top = (repo.soc.get("design", {}) or {}).get("name")
+    result = generate_filelists(repo, top_name=top)
+    print(f"[filelist] {len(result['files'])} file(s) -> {result['outdir']}")
+    return 0
+
+
+def cmd_status(args):
+    root = Path(args.project).resolve()
+    ws_root = find_workspace(root)
+    if ws_root is not None:
+        ws = load_workspace(ws_root)
+        repo = current_repo(ws, root)
+        print(f"workspace : {ws.name} ({ws_root})")
+        print(f"default_top: {ws.default_top}")
+        print(f"repos     : {len(ws.repos)}")
+        if repo is not None:
+            print(f"current   : {repo.name}")
+    else:
+        repo = load_repo(root)
+        print(f"repo      : {repo.name} ({root})")
+        print("workspace : (no workspace.yaml, single-repo mode)")
+    return 0
+
+
+def cmd_repos(args):
+    ws_root = find_workspace(Path(args.project).resolve())
+    if ws_root is None:
+        print("no workspace.yaml")
+        return 0
+    ws = load_workspace(ws_root)
+    for name, repo in ws.repos.items():
+        print(f"{name}\t{repo.vlnv or ''}")
+    return 0
+
+
+def cmd_tops(args):
+    root = Path(args.project).resolve()
+    ws_root = find_workspace(root)
+    if ws_root is not None:
+        ws = load_workspace(ws_root)
+        if ws.default_top:
+            print(ws.default_top)
+        for repo in ws.repos.values():
+            design = (repo.soc or {}).get("design", {}) or {}
+            if design.get("name"):
+                print(design["name"])
+    else:
+        repo = load_repo(root)
+        design = (repo.soc or {}).get("design", {}) or {}
+        if design.get("name"):
+            print(design["name"])
+    return 0
+
+
+def cmd_clean(args):
+    paths = _paths(args.project)
+    build = paths["root"] / "build"
+    if build.exists():
+        shutil.rmtree(build)
+        print("[clean] removed build/")
+    return 0
+
+
+def cmd_create(args):
+    messages = create_project(args.prj, sub=args.sub, init=args.init, no_git=args.no_git)
+    for message in messages:
+        print(f"[create] {message}")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="soc-itg")
     parser.add_argument("-C", "--project", default=".", help="project directory")
@@ -158,6 +297,7 @@ def build_parser():
     sub.add_parser("parse")
     sub.add_parser("assemble")
     sub.add_parser("check")
+    sub.add_parser("connect")
 
     gen = sub.add_parser("generate")
     gen.add_argument("-g", "--gen", default="all", choices=["all", "top", "csr", "pinmux"])
@@ -169,6 +309,24 @@ def build_parser():
     pinmux = sub.add_parser("pinmux")
     pinmux.add_argument("file", nargs="?")
 
+    topcsr = sub.add_parser("topcsr")
+    topcsr.add_argument("file", nargs="?")
+
+    crg = sub.add_parser("crg")
+    crg.add_argument("--tb", action="store_true")
+
+    sub.add_parser("status")
+    sub.add_parser("repos")
+    sub.add_parser("tops")
+    sub.add_parser("filelist")
+    sub.add_parser("clean")
+
+    create = sub.add_parser("create")
+    create.add_argument("--prj", required=True)
+    create.add_argument("--sub")
+    create.add_argument("--init", action="store_true")
+    create.add_argument("--no-git", action="store_true")
+
     return parser
 
 
@@ -179,9 +337,18 @@ def main(argv=None):
         "parse": cmd_parse,
         "assemble": cmd_assemble,
         "check": cmd_check,
+        "connect": cmd_connect,
         "generate": cmd_generate,
         "build": cmd_build,
         "pinmux": cmd_pinmux,
+        "topcsr": cmd_topcsr,
+        "crg": cmd_crg,
+        "status": cmd_status,
+        "repos": cmd_repos,
+        "tops": cmd_tops,
+        "filelist": cmd_filelist,
+        "clean": cmd_clean,
+        "create": cmd_create,
     }
     if args.command is None:
         parser.print_help()

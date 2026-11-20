@@ -7,5 +7,6 @@ dependencies:
   - pyyaml>=6
   - lxml
   - jinja2
+  - openpyxl
   - typer
   - pytest

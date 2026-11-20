@@ -1,0 +1,6 @@
+NAME,KIND,FREQ_MHZ,DESC
+clk_osc_25m,clk,25,on-chip oscillator
+clk_ext_100m,clk,100,external board clock
+por_n,rst,,"power-on reset, async active-low"
+dbg_rst_n,rst,,external debug reset request
+uart_active,ena,,UART IP activity enable (HW clock gate)

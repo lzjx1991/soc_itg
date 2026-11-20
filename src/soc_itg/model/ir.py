@@ -42,11 +42,22 @@ class MemoryMap(BaseModel):
     registers: list[Register] = Field(default_factory=list)
 
 
+class FileItem(BaseModel):
+    name: str
+    file_type: str = ""
+
+
+class FileSet(BaseModel):
+    name: str
+    files: list[FileItem] = Field(default_factory=list)
+
+
 class Component(BaseModel):
     vlnv: str
     ports: list[Port] = Field(default_factory=list)
     bus_interfaces: list[BusInterface] = Field(default_factory=list)
     memory_maps: list[MemoryMap] = Field(default_factory=list)
+    file_sets: list[FileSet] = Field(default_factory=list)
 
     def port(self, name: str) -> Optional[Port]:
         return next((p for p in self.ports if p.name == name), None)

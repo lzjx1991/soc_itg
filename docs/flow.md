@@ -7,18 +7,21 @@
 工具由一串**阶段脚本**组成,每个阶段是 **输入(文件) → 输出(文件)** 的纯函数。阶段之间通过 **JSON + Pydantic 契约**传递,契约带 `schema_version`。
 
 ```
-ipgen → parse → assemble → check → generate → release → (flow)
+ipgen → parse → assemble → pinmux → crg → check → connect → generate → release → (flow)
 ```
 
 ## 2. 阶段定义
 
 | 阶段 | 子命令 | 读 | 写 |
 |:---:|--------|-----|-----|
-| 0 | `ipgen` | Excel + RTL + ip.yaml | `ip/*.xml`(IP-XACT) |
+| 0 | `ipgen` | 寄存器 Excel + RTL + ip.yaml | `ip/*.xml`(IP-XACT) |
 | 1 | `parse` | `*.xml`(IP-XACT) | `build/ipdb.json` |
-| 2 | `assemble` | `ipdb.json` + `soc.yaml` + pinmux + crg | `build/soc.json` |
-| 3 | `check` | `soc.json` | `build/findings.json` |
-| 4 | `generate` | `soc.json` | `generated/**` |
+| 2 | `assemble` | `ipdb.json` + `soc.yaml` | `build/soc.json` |
+| 2p | `pinmux` | `pinmux.xlsx` | `build/pinmux.json` |
+| 2c | `crg` | `crg/*.xlsx`(crg_gen schema) | `generated/crg/<mod>/` + `build/crg.json` |
+| 3 | `check` | `soc.json`(+pinmux/crg) | `build/findings.json` |
+| 3a | `connect` | `soc.json` + `pinmux.json` + `crg.json` | `build/connectivity.json` |
+| 4 | `generate` | `soc.json` + `connectivity.json` + `pinmux.json` + `crg.json` | `generated/**` |
 | 5 | `release` | `generated/**` + `soc.json` | `release/<ver>/` |
 | 6 | `run`(Phase B) | `generated/**` | 工具结果 |
 

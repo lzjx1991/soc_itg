@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from ...model import Component, Port, BusInterface, RegisterField, Register, MemoryMap
+from ...model import Component, Port, BusInterface, RegisterField, Register, MemoryMap, FileItem, FileSet
 
 
 _ACCESS_MAP = {
@@ -13,6 +13,11 @@ _WRITE_MAP = {
     "clear": "clear", "set": "set", "modify": "modify",
 }
 _READ_MAP = {"clear": "rc", "set": "rs", "modify": "none"}
+_MODE_MAP = {
+    "master": "master", "slave": "slave", "system": "system", "monitor": "monitor",
+    "initiator": "master", "target": "slave",
+    "mirroredinitiator": "master", "mirroredtarget": "slave",
+}
 
 
 def _norm_access(value):
@@ -90,11 +95,8 @@ def _parse_bus_interfaces(root):
         return []
     result = []
     for bi in _children(bis_el, "busInterface"):
-        mode = "slave"
-        if _child(bi, "master") is not None:
-            mode = "master"
-        elif _child(bi, "system") is not None:
-            mode = "system"
+        mode = _attr(bi, "interfaceMode") or _text(bi, "interfaceMode") or ("master" if _child(bi, "master") is not None else "system" if _child(bi, "system") is not None else "slave")
+        mode = _MODE_MAP.get(str(mode).strip().lower(), "slave")
         bt = _child(bi, "busType")
         port_maps = {}
         pms = _child(bi, "portMaps")
@@ -154,6 +156,19 @@ def _parse_memory_maps(root):
     return result
 
 
+def _parse_file_sets(root):
+    fs_el = _child(root, "fileSets")
+    if fs_el is None:
+        return []
+    result = []
+    for fs in _children(fs_el, "fileSet"):
+        files = []
+        for f in _children(fs, "file"):
+            files.append(FileItem(name=_text(f, "name"), file_type=_text(f, "fileType", "")))
+        result.append(FileSet(name=_text(fs, "name"), files=files))
+    return result
+
+
 def parse(path):
     root = ET.parse(path).getroot()
     vlnv = ":".join([_text(root, "vendor", ""), _text(root, "library", ""), _text(root, "name", ""), _text(root, "version", "")])
@@ -162,4 +177,5 @@ def parse(path):
         ports=_parse_ports(root),
         bus_interfaces=_parse_bus_interfaces(root),
         memory_maps=_parse_memory_maps(root),
+        file_sets=_parse_file_sets(root),
     )

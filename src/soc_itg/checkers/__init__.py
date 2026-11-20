@@ -1,3 +1,7 @@
-from .connectivity import run_checks
+from .connectivity import run_checks as _connectivity_checks
+from .width import check_width
 
-__all__ = ["run_checks"]
+
+def run_checks(soc):
+    return _connectivity_checks(soc) + check_width(soc)
+

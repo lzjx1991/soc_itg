@@ -65,6 +65,9 @@ src/soc_itg/
 输入: IP-XACT + soc.yaml(连接) + pinmux(Excel) + crg(Excel)
   ① parse     → build/ipdb.json     (归一化 IP 库)
   ② assemble  → build/soc.json      (已解析 SoC 模型)
+  ②p pinmux   → build/pinmux.json   (pinmux 模型)
+  ②c crg      → build/crg.json      (CRG 模型,待合入)
+  ②a connect  → build/connectivity.json (连接关系 / netlist)
   ③ check     → build/findings.json (完整性/地址/位宽/安全)
   ④ generate  → generated/**        (RTL/CSR/SDC/filelist/verify/docs)
   ⑤ release   → release/<ver>/

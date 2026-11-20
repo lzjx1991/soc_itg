@@ -1,0 +1,4 @@
+NAME,TYPE,PARENT,PARENT2,RATIO_DEF,RATIO_MAX,GATE,HW_EN,RST,EXPORT,DESC
+clk_cpu,mux2,clk_osc_25m,clk_ext_100m,,,,,,,"CPU clock, glitch-free select osc/ext"
+clk_peri,divider,clk_cpu,,2,8,是,,por_n,,"peripheral clock = cpu/N (SW 2..8), software gated"
+clk_uart,divider,clk_ext_100m,,4,,是,uart_active,,否,"UART clock = ext/4 (fixed), SW + HW gated, internal"

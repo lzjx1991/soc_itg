@@ -17,6 +17,7 @@
       <spirit:port><spirit:name>pready</spirit:name><spirit:direction>out</spirit:direction></spirit:port>
       <spirit:port><spirit:name>pslverr</spirit:name><spirit:direction>out</spirit:direction></spirit:port>
       <spirit:port><spirit:name>irq</spirit:name><spirit:direction>out</spirit:direction></spirit:port>
+      <spirit:port><spirit:name>test_en</spirit:name><spirit:direction>in</spirit:direction></spirit:port>
     </spirit:ports>
   </spirit:model>
   <spirit:busInterfaces>
@@ -38,6 +39,12 @@
       </spirit:portMaps>
     </spirit:busInterface>
   </spirit:busInterfaces>
+  <spirit:fileSets>
+    <spirit:fileSet>
+      <spirit:name>rtl</spirit:name>
+      <spirit:file><spirit:name>rtl/uart.v</spirit:name><spirit:fileType>verilogSource</spirit:fileType></spirit:file>
+    </spirit:fileSet>
+  </spirit:fileSets>
   <spirit:memoryMaps>
     <spirit:memoryMap>
       <spirit:name>APB_Slave_MM</spirit:name>

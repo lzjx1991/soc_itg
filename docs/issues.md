@@ -10,6 +10,9 @@
 - 工具链:`pyproject.toml`、`environment.yml`、`requirements.txt`、`tests/`
 - Demo:`examples/demo_soc/`(2 个 IP-XACT 2009 + soc.yaml + pinmux.xlsx)→ 全链路 + pinmux reader 跑通
 - **Pinmux Excel reader**(`src/soc_itg/pinmux/`):4 sheet → Pinmux 模型 + 校验;CLI `soc-itg pinmux`
+- **连接文件 + 统一连线器**:`connectivity.json` + `netlist_emit`;top 端口=pads
+- **top-CSR**:Excel(`type`/`bind`)→ `u_top_regs` 接入;`regtypes` 类型映射
+- **CRG 引擎合入**:`crg_gen` 迁移为 `src/soc_itg/crg/`(parser/validate/generate + templates + 叶子 lib);`soc-itg crg` 读 `crg/*.xlsx` → `generated/crg/<mod>/`(+ rtl/sdc 汇总 + `build/crg.json`);原包已删除
 
 ## B. 环境问题与决定
 
@@ -30,7 +33,7 @@
 | I2 | 无短名→路径 / 自动穿端口 / 子系统递归 | assemble 仅单层 |
 | I3 | top RTL 生成简化 | 仅按 portMap 连同名逻辑信号;未连端口输出空 `.port()`;无位宽检查;无时钟复位到顶层端口 |
 | I4 | 未套**文件头模板** + 未做完整 flatten 规范 | B1 要求 |
-| I5 | 未实现 pinmux RTL / CRG / SDC / filelist / verify / docs / release | **pinmux reader + pinmux/regblock RTL 已实现**;CRG/SDC/filelist/verify/docs 待补 |
+| I5 | 未实现 SDC 合并 / filelist / verify / docs / release | **CRG 生成已合入**;SDC(filelist/verify/docs/release)待补 |
 | I6 | 未实现 `ipgen`(Excel→IP-XACT)与 Excel reader | 设计已定 |
 | I7 | CSR 只出 OFFSET/MSK/POS 宏;无 struct 访问器 / RAL / security 标记 | 精简 demo |
 | I8 | check 仅 连接存在性 + 地址冲突;无位宽/security 检查 | |
@@ -88,6 +91,49 @@
 - pad 假定 **1-bit**;多比特 pad / 总线 pad 未处理(演示数据里 pad↔多比特 pin 存在位宽 mismatch,仅为结构演示)
 - analog pad 只例化 wrapper,直通路径未连
 - 影子寄存器 / 锁 / 计数器 / 硬件写(hw=w)语义未做;位宽检查、RAL 未做
+
+## I. 连接文件 + 统一连线器(已实现)
+
+- 新增 **`build/connectivity.json`**(netlist):`ports`(顶层 pads)/ `instances`(含各自 port 列表)/ `nets`(endpoints 列表,含方向/宽度/tri_state)
+- 新增命令 **`soc-itg connect`** → 生成连接文件
+- `generate -g top` 改为**统一 emitter**(`generators/netlist_emit.py`)消费连接文件,**不再就地"谁该连就连"**
+- 连接来源:pads→顶层端口、IP 内部总线(`portMap` 展开)、pinmux↔IP
+- 规则:记录方向/位宽;**单驱动校验**(tri-state 除外)
+
+**已知限制**:
+- pinmux 的 APB4 端口尚未接总线(top 里留空)
+- pinmux↔IP:若该 IP pin 已被内部总线占用 → **跳过以避免多驱动**
+- pinmux 模块内 pad(1-bit)↔多比特 pin 存在位宽 mismatch(demo 数据;建议映射到 1-bit pin)
+
+## J. top-CSR 与 glue logic
+
+**top-CSR(已实现)**:
+- 输入 `top_csr.xlsx`(寄存器模板 + **`type`** 列 + **`bind`** 列;另有 `type_ref` 参考 sheet)
+- **`type` 列**:rw/ro/wo/w1c/w1s/w1t/w0c/w0s/w0t/rc/rs/rw1/w1;经 `regtypes.resolve_type` 展开成 access+write_action+read_action
+- `type_ref` sheet:type→access/write_action/read_action 映射 + 中文含义(供人参考)
+- `soc-itg topcsr` → `build/topcsr.json`(MemoryMap + bindings)
+- `generate -g csr` → `<top>_top_regs.v`(regblock,全类型 + security)
+- `connect` → 实例 `u_top_regs` + 每 bind 一条 net:
+  - **rw/wo 字段 → 驱动 `inst.port`**(字段输出为 driver)
+  - **ro 字段 → 读 `inst.port`**(实例输出为 driver)
+  - bind 逗号分隔 = 多目标;空 = 不建连接
+- demo:`SYS_CTRL.EN→uart0.test_en`(rw)、`STATUS.BUSY←uart0.irq`(ro)
+
+**glue logic(设计,未实现)**:
+- 复杂:用户写 `top_glue.v` → 作为实例 `u_glue`,由 netlist 连
+- 简单(tie/mux/assign):connectivity 增加 `assigns` 段,emitter 出 `assign`
+
+## K. 连接语义扩展 + glue 定案
+
+**tie / 悬空(soc.yaml connections 语法)**:
+- `inst.port = inst.port` → interconnection
+- `inst.port = 1'b0` / `1'b1` → tie 0/1
+- `inst.port = none` → 悬空(不建连接)
+- netlist 记录 `ties`;emitter 出 `.port(1'b0/1'b1)`;`none` 留 `.port()`
+
+**glue logic(定案)**:
+- 人工写 glue RTL → `ipgen` **抽取 IP-XACT** → 当**普通 IP 实例**接入(不做独立 assigns 机制)
+- ipgen 待实现
 
 ## F. git
 

@@ -5,5 +5,7 @@ design:
     - { name: uart0, vlnv: "acme.com:PERIPH:uart:1.0.0" }
   connections:
     - cpu0.APB_Master = uart0.APB_Slave
+    - cpu0.halt = 1'b0
+    - cpu0.dbg = none
   address_map:
     - { region: uart0, base: 0x10000000, size: 0x1000 }

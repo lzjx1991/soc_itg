@@ -1,0 +1,3 @@
+ADDR,REG,FIELD,MSB,LSB,ACCESS,RESET,DESC
+{% for r in m.regs %}{% for f in r.fields %}0x{{ '%08x'|format(r.addr) }},{{ r.name }},{{ f.name }},{{ f.msb }},{{ f.lsb }},{{ f.access }},{{ f.reset }},{{ f.desc }}
+{% endfor %}{% endfor %}

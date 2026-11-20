@@ -1,0 +1,5 @@
+NAME,TYPE,PARENT,HW_SRC,SW,CLK,MCP,EXPORT,DESC
+rst_cpu_n,sync,por_n,,是,clk_cpu,,,"CPU domain, SW resettable"
+rst_peri_n,sync,rst_cpu_n,,是,clk_peri,,,"peripheral domain, released after cpu, SW resettable"
+rst_uart_n,sync,por_n,dbg_rst_n,,clk_uart,2,否,"UART domain, merges external debug reset, MCP-gated, internal only"
+rst_uart_core_n,sync,rst_uart_n,,,clk_uart,2,,"UART IP core reset, MCP-gated, child of internal rst_uart_n"

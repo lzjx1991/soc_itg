@@ -30,6 +30,8 @@ class DemoPipelineTest(unittest.TestCase):
         cnt = next(f for f in int_reg.fields if f.name == "CNT")
         self.assertEqual(irq.write_action, "w1c")
         self.assertEqual(cnt.access, "ro")
+        self.assertEqual(len(comp.file_sets), 1)
+        self.assertEqual(comp.file_sets[0].files[0].name, "rtl/uart.v")
 
     def test_assemble_and_check(self):
         with tempfile.TemporaryDirectory() as td:

@@ -34,7 +34,9 @@ python3.11 -m venv .venv
 
 cd examples/demo_soc
 ../../.venv/bin/python make_pinmux_xlsx.py
+../../.venv/bin/python make_topcsr_xlsx.py
 PYTHONPATH=../../src ../../.venv/bin/python -m soc_itg.cli.main pinmux
+PYTHONPATH=../../src ../../.venv/bin/python -m soc_itg.cli.main topcsr
 PYTHONPATH=../../src ../../.venv/bin/python -m soc_itg.cli.main build
 ```
 
