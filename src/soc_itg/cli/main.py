@@ -228,8 +228,9 @@ def cmd_open(args):
     from ..flow import gather_filelist, eda_dir_of
     workspace_dir_of(repo.path)
     merged = gather_filelist(repo, ws, tool)
-    target = eda_dir_of(repo) / f"{tool}.f"
-    target.parent.mkdir(parents=True, exist_ok=True)
+    task_dir = eda_dir_of(repo) / repo.name / tool
+    task_dir.mkdir(parents=True, exist_ok=True)
+    target = task_dir / "filelist.f"
     lines = [f"+incdir+{d}" for d in merged["incdirs"]] + [f"+define+{d}" for d in merged["defines"]] + merged["files"]
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[{tool}] {len(merged['files'])} file(s) -> {target}")
